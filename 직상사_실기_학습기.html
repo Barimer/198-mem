@@ -3128,6 +3128,7 @@
     let cloudVersion = '';
 
     function queueCloudSave() {
+      if (!cloudReady) return; // 초기 화면 렌더링 중에는 저장하지 않음
       cloudDirty = true;
       clearTimeout(cloudTimer);
       if (!cloudReady || cloudBusy) return;
