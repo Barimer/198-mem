@@ -3443,7 +3443,7 @@
     function renderMemoUI(qId) {
       const memoText = (userState.memos && userState.memos[qId]) || '';
       const textarea = document.getElementById('memo-textarea');
-      if (textarea) {
+      if (textarea && document.activeElement !== textarea) {
         textarea.value = memoText;
       }
       const btnMemo = document.getElementById('btn-memo');
@@ -3469,25 +3469,21 @@
     }
 
     function toggleMemo(forcedState) {
-      if (typeof forcedState === 'boolean') {
-        isMemoOpen = forcedState;
-      } else {
-        isMemoOpen = !isMemoOpen;
-      }
+      isMemoOpen = typeof forcedState === 'boolean' ? forcedState : !isMemoOpen;
       const memoBox = document.getElementById('memo-box');
       const btnMemo = document.getElementById('btn-memo');
-      if (isMemoOpen) {
-        memoBox.classList.add('open');
-        btnMemo.classList.add('memo-open');
-        const textarea = document.getElementById('memo-textarea');
-        // 요구사항: 기존에 메모에 입력된 내용이 없을 때만 키보드(focus) 열기
-        if (!textarea.value || !textarea.value.trim()) {
-          textarea.focus();
-        }
-      } else {
-        memoBox.classList.remove('open');
-        btnMemo.classList.remove('memo-open');
-      }
+      memoBox.classList.toggle('open', isMemoOpen);
+      btnMemo.classList.toggle('memo-open', isMemoOpen);
+      if (!isMemoOpen) return;
+
+      // 열 때마다 현재 문제의 저장된 메모를 표시한다.
+      const textarea = document.getElementById('memo-textarea');
+      const q = activeQuestions[currentIndex];
+      const savedMemo = (q && userState.memos && userState.memos[q.id]) || '';
+      if (textarea.value !== savedMemo) textarea.value = savedMemo;
+      // 내용이 없을 때만 모바일 키보드를 연다.
+      if (!savedMemo.trim()) textarea.focus();
+      else textarea.blur();
     }
 
     function handleMemoInput(val) {
