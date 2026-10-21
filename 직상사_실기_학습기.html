@@ -3119,6 +3119,66 @@
         console.error(e);
       }
       updateStats();
+      queueCloudSave();
+    }
+
+    // 모든 기기가 하나의 공용 기록을 공유합니다 (Firebase Rules에 읽기/쓰기 권한 필요).
+    const CLOUD_URL = 'https://mem-c3a13-default-rtdb.firebaseio.com/study.json';
+    let cloudReady = false, cloudDirty = false, cloudBusy = false, cloudTimer;
+    let cloudVersion = '';
+
+    function queueCloudSave() {
+      cloudDirty = true;
+      clearTimeout(cloudTimer);
+      if (!cloudReady || cloudBusy) return;
+      cloudTimer = setTimeout(async () => {
+        if (cloudBusy) return;
+        cloudBusy = true;
+        const body = JSON.stringify(userState);
+        try {
+          const res = await fetch(CLOUD_URL, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body });
+          if (!res.ok) throw Error('저장 실패: ' + res.status);
+          cloudVersion = body;
+          cloudDirty = JSON.stringify(userState) !== body;
+        } catch (e) { console.warn('클라우드 저장 실패', e); }
+        finally {
+          cloudBusy = false;
+          if (cloudDirty) queueCloudSave();
+        }
+      }, 1200);
+    }
+
+    async function pullCloud() {
+      if (cloudBusy || cloudDirty) return;
+      cloudBusy = true;
+      try {
+        const res = await fetch(CLOUD_URL + '?t=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) throw Error('불러오기 실패: ' + res.status);
+        const remote = await res.json();
+        if (remote && typeof remote === 'object') {
+          const version = JSON.stringify(remote);
+          if (version !== cloudVersion) {
+            cloudVersion = version;
+            userState = { ...userState, ...remote };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(userState));
+            loadState();
+            if (questions.length) initData();
+          }
+        } else if (!cloudReady) {
+          cloudDirty = true; // 첫 기기의 기존 학습 기록 업로드
+        }
+        cloudReady = true;
+      } catch (e) { console.warn('클라우드 불러오기 실패', e); }
+      finally {
+        cloudBusy = false;
+        if (cloudReady && cloudDirty) queueCloudSave();
+      }
+    }
+
+    function startSync() {
+      pullCloud();
+      setInterval(pullCloud, 15000);
+      window.addEventListener('focus', pullCloud);
     }
 
     // CSV 파서
@@ -4089,6 +4149,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       loadState();
       initData();
+      startSync();
     });
   </script>
 </body>
